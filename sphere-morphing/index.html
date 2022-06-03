@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html>
+	
+	<! input head related content -->
+	<head>
+		<! aux stuff -->
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+		
+		<! include code reference to pyscript -->
+		<link rel="stylesheet" href="https://pyscript.net/alpha/pyscript.css" />
+		<script defer src="https://pyscript.net/alpha/pyscript.js"></script>
+		
+		<py-env>
+        - numpy
+        - matplotlib
+        - scipy
+      </py-env>
+		
+		<! include the title -->
+		<title>sphere morph visualization</title>
+	</head>
+	
+	
+	<! input the main body content -->
+	<body>
+		
+		<h1>Plot a simple image using the code from the sample script</h1>
+		<div id="plot"></div>
+		
+		<py-script>
+		
+		import numpy as np
+		import scipy.linalg as linalg
+		import matplotlib.pyplot as plt
+		
+		# class representing data that might be stored in our vertices for this problem
+		class VertexData:
+		  def __init__(self, position=None, face=None):
+		    self.face = face
+		    self.pos = position
+		
+		  # get all vertex IDs on the boundary of the face
+		  # and return them as a set
+		  def get_vertex_id_set(self):
+		    vid_set = set()
+		    for d in self.face:
+		      vid_set.add(d.tail.id)
+		      vid_set.add(d.head.id)
+		    return vid_set
+		
+		# general vertex class with the ability to add
+		# auxiliary data for the vertex to store
+		class Vertex:
+		  def __init__(self, id, aux_data=None):
+		    self.id = id
+		    self.aux_data = aux_data
+		
+		  def __hash__(self):
+		    return hash(id)
+		
+		  def __eq__(self, u):
+		    return self.id == u.id
+		
+		  def __ne__(self, u):
+		    return not self.__eq__(u)
+		    
+		# general dart
+		class Dart:
+		  def __init__(self, tail: Vertex, head: Vertex):
+		    self.tail = tail
+		    self.head = head
+		    self.twin = None
+		
+		  def __hash__(self):
+		    return hash((self.tail.id, self.head.id))
+		
+		  def __eq__(self, e):
+		    return (self.tail == e.tail) and (self.head == e.head)
+		
+		  def __ne__(self, e):
+		    return not self.__eq__(e)
+		
+		  def __repr__(self):
+		    return "({0}->{1})".format(self.tail.id, self.head.id)
+		
+		  def rev(self):
+		    # get the reversal edge
+		    return self.twin
+		
+		  def rev_idx(self):
+		    # get the reversal vertex indices
+		    return (self.tail.id, self.head.id)
+		
+		  def dual(self):
+		    # get the dual edge
+		    return self.dual_edge
+		
+		  def set_twin(self, twin):
+		    self.twin = twin
+		
+		  def set_dual_edge(self, dual_e):
+		    self.dual_edge = dual_e
+		
+		class Graph:
+		  def __init__(self, num_vertices, connectivity, aux_data=None):
+		    """
+		    vertex_list should be a numpy array of dimensions d x n, where d is the
+		    dimension of the space and n is the number of vertices
+		
+		    connectivity should be an adjacency list representation for the graph, where
+		    the order of the edges is expected to correspond to a clockwise rotation
+		    system. For example, if the out edges for a vertex v are [e1, e2, e3, e4] 
+		    in that order, the expected rotation system is drawn below
+		
+		                                  ▲ │                      
+		                                  │ │                      
+		                                  │ │                      
+		                                  │ │                      
+		                                  │ │                      
+		                                 e2 │                  ┌▶  
+		                                  │ │                ┌─┘ ┌─
+		                                  │ │              ┌─┘ ┌─┘ 
+		                                  │ │           e3─┘ ┌─┘   
+		                                  │ │          ┌─┘ ┌─┘     
+		                                  │ ▼        ┌─┘ ┌─┘       
+		                                          ┌──┘ ┌─┘         
+		                                .─────. ──┘  ┌─┘           
+		                               ;       :   ┌─┘             
+		              ┌──────────▶     :   v   ;  ◀┘               
+		    ──────────┘┌──e1───────                                
+		     ◀─────────┘                 `───'  ──┐                
+		                                       ◀┐ └──┐             
+		                                        └──┐ └e4┐          
+		                                           └──┐ └──┐       
+		                                              └──┐ └─┐     
+		                                                 └── └▶           
+		
+		    """
+		
+		    # build the primal graph
+		    self._build_primal_graph(num_vertices, connectivity, aux_data)
+		
+		  def get_vertex(self, vid):
+		    return self.vertices[vid]
+		
+		  def get_dart(self, vid1, vid2):
+		    for d in self.out_connectivity[vid1]:
+		      if d.head.id == vid2:
+		        return d
+		    return None
+		
+		  def get_out_darts(self, vid):
+		    return self.out_connectivity[vid]
+		
+		  def num_v(self):
+		    return self.num_vertices
+		
+		  def num_e(self):
+		    return self.num_edges
+		    
+		  def out_degree(self, v: Vertex):
+		    # primal out degree of a primal vertex v
+		    id = v.id
+		    return len(self.out_connectivity[id])
+		
+		  def in_degree(self, v: Vertex):
+		    # primal in degree of a primal vertex v
+		    # currently assume the same as out degree
+		    return self.out_degree(v)
+		
+		  def build_dual_graph(self):
+		
+		    # get the faces for the dual graph
+		    faces_list, edge2facet_idx  = self._get_faces()
+		
+		    # get the number of faces
+		    nf = len(faces_list)
+		
+		    # construct the vertices for the dual graph
+		    idx = 0
+		    dual_data = []
+		    for f in faces_list:
+		      dual_data.append(VertexData(face=f))
+		
+		    # construct the edges for the dual graph
+		    dual_connectivity = []
+		    for i in range(0, nf):
+		      e_list = []
+		      for e in faces_list[i]:
+		        e_rev = e.rev()
+		        e_list.append(edge2facet_idx[e_rev])
+		      e_list.reverse()
+		      dual_connectivity.append(e_list)
+		
+		    # construct the actual dual graph
+		    dual_graph: Graph = Graph(nf, dual_connectivity, dual_data)
+		
+		    # connect dual edges and primal edges
+		    for i in range(0, nf):
+		      #faces_list[i].reverse()
+		      idx = 0
+		      for j in dual_connectivity[i]:
+		        e = faces_list[i][idx]
+		        idx = idx + 1
+		
+		        # construct dual edge
+		        e_ij = dual_graph.get_dart(i, j)
+		
+		        # connect primal edge with corresponding dual edge
+		        e_ij.set_dual_edge(e)
+		        e.set_dual_edge(e_ij)
+		
+		    return dual_graph
+		
+		  def build_polar(self):
+		
+		    # get the faces for the dual graph
+		    faces_list, edge2facet_idx  = self._get_faces()
+		
+		    # get the number of faces
+		    nf = len(faces_list)
+		
+		    # construct the vertices for the dual graph
+		    idx = 0
+		    dual_data = []
+		    for f in faces_list:
+		
+		      # compute the position of the dual point
+		      n = self._compute_polar_normal(f)
+		
+		      # add the dual data
+		      dual_data.append(VertexData(face=f, position=n))
+		
+		    # construct the edges for the dual graph
+		    dual_connectivity = []
+		    for i in range(0, nf):
+		      e_list = []
+		      for e in faces_list[i]:
+		        e_rev = e.rev()
+		        e_list.append(edge2facet_idx[e_rev])
+		      e_list.reverse()
+		      dual_connectivity.append(e_list)
+		
+		    # construct the actual dual graph
+		    dual_graph: Graph = Graph(nf, dual_connectivity, dual_data)
+		
+		    # connect dual edges and primal edges
+		    for i in range(0, nf):
+		      #faces_list[i].reverse()
+		      idx = 0
+		      for j in dual_connectivity[i]:
+		        e = faces_list[i][idx]
+		        idx = idx + 1
+		
+		        # construct dual edge
+		        e_ij = dual_graph.get_dart(i, j)
+		
+		        # connect primal edge with corresponding dual edge
+		        e_ij.set_dual_edge(e)
+		        e.set_dual_edge(e_ij)
+		
+		    return dual_graph
+		
+		
+		  def get_points_coords(self):
+		    P = np.zeros((self.num_vertices, 3))
+		    for i in range(0, self.num_vertices):
+		      vi = self.vertices[i]
+		      P[i,:] = vi.aux_data.pos
+		    return P
+		
+		  """
+		  add private helper methods
+		  """
+		  def _build_primal_graph(self, num_vertices, connectivity, aux_data):
+		    # some parameters that will be good to store
+		    n = num_vertices
+		    self.num_vertices = n
+		    self.num_edges = 0
+		
+		    # construct vertices
+		    self.vertices = [None] * n
+		    for i in range(0, n):
+		      if aux_data is None:
+		        self.vertices[i] = Vertex(i)
+		      else:
+		        self.vertices[i] = Vertex(i, aux_data[i])
+		
+		    # construct list of edges in adjacency list format, where the
+		    # edges associated with vertex i are those where vertex i is the
+		    # tail of the edge
+		    self.out_connectivity = []
+		    for i in range(0, n):
+		      vi = self.vertices[i]
+		      edge_list = []
+		      for j in connectivity[i]:
+		        vj = self.vertices[j]
+		        self.num_edges += 1
+		        edge_list.append(Dart(tail=vi, head=vj))
+		      self.out_connectivity.append(edge_list)
+		
+		    # setup the reverse of each edge
+		    for i in range(0, n):
+		      for e in self.out_connectivity[i]:
+		        (revt, revh) = e.rev_idx()
+		        for eprime in self.out_connectivity[revh]:
+		          if eprime.head.id == revt:
+		            e.set_twin(eprime)
+		            break
+		
+		  def _compute_polar_normal(self, edge_list):
+		
+		    # grab distinct vertices
+		    v_set = set()
+		    for e in edge_list:
+		      v_set.add(e.tail)
+		      v_set.add(e.head)
+		
+		    # compute center of the vertices
+		    center = np.zeros((3,))
+		    for v in v_set:
+		      center += v.aux_data.pos / len(v_set)
+		    
+		    # compute the normal
+		    e0 = edge_list[0]
+		    v1 = e0.tail.aux_data.pos - center
+		    v2 = e0.head.aux_data.pos - center
+		    n = np.cross(v1, v2)
+		
+		    # compute normalization value
+		    normalize_val = np.dot(n, e0.tail.aux_data.pos)
+		    n = n / normalize_val;
+		    return n
+		
+		  def _rot_idx(self, e: Dart):
+		    # index of edge e in rotation system about its tail
+		    idx = 0
+		    for eprime in self.out_connectivity[e.tail.id]:
+		      if eprime.head.id == e.head.id:
+		        return idx
+		      else:
+		        idx += 1
+		
+		  def _next(self, e: Dart):
+		    # get next dart in rotation system
+		    odeg = self.out_degree(e.tail)
+		    idx = self._rot_idx(e)
+		    return self.out_connectivity[e.tail.id][ (idx + 1) % odeg]
+		
+		  def _prev(self, e: Dart):
+		    # get next dart in rotation system
+		    odeg = self.out_degree(e.tail)
+		    idx = self._rot_idx(e)
+		    return self.out_connectivity[e.tail.id][ (idx + (odeg - 1)) % odeg]
+		
+		  def _get_faces(self):
+		    unvisited_edges = set()
+		
+		    # init set of edges
+		    for i in range(0, self.num_vertices):
+		      for edge in self.out_connectivity[i]:
+		        unvisited_edges.add(edge)
+		    
+		    # construct the faces
+		    fidx = 0
+		    edge2facet_idx = dict()
+		    faces_list = []
+		    while len(unvisited_edges) > 0:
+		      # init a new face
+		      face = []
+		
+		      # pop off an arbitrary edge
+		      e = unvisited_edges.pop()
+		      face.append(e)
+		      edge2facet_idx[e] = fidx
+		
+		      # loop over cycle representing face
+		      # based on the rotation system
+		      et = self._next(e.rev());
+		      while et != e:
+		        face.append(et)
+		        edge2facet_idx[et] = fidx
+		        unvisited_edges.remove(et)
+		        et = self._next(et.rev());
+		      
+		      # add the face to the list
+		      faces_list.append(face)
+		      fidx = fidx + 1
+		
+		    # return the final list of faces
+		    return (faces_list, edge2facet_idx)
+		
+		def plot_polyhedron_graph(G, color, handle = None):
+		
+		  # set the figure handle
+		  fig_handle = None
+		  if handle is None:
+		    fig_handle = plt.figure()
+		  else:
+		    fig_handle = handle
+		  plt.figure(fig_handle.number)
+		
+		  # size of polyhedron graph
+		  ne = G.num_e() # number of edges
+		  nv = G.num_v() # number of vertices
+		
+		  # plot the edges first
+		  for i in range(0, nv):
+		    out_edges = G.get_out_darts(i)
+		    for e in out_edges:
+		
+		      # plot edge using coordinates of vertices
+		      p1 = e.tail.aux_data.pos
+		      p2 = e.head.aux_data.pos
+		      ax.plot3D(np.array([p1[0], p2[0]]), 
+		                np.array([p1[1], p2[1]]), 
+		                np.array([p1[2], p2[2]]), color=color, linewidth=2)
+		
+		  # plot the vertices
+		  for i in range(0, nv):
+		    vi = G.get_vertex(i).aux_data
+		
+		    # plot vertex
+		    ax.scatter( np.array([vi.pos[0]]), 
+		                np.array([vi.pos[1]]), 
+		                np.array([vi.pos[2]]), c=color)
+		    
+		  # return the figure handle
+		  return fig_handle
+		
+		# primal tet graph construction
+		nv = 4 # number of vertices
+		connectivity = [[1, 3, 2], [0, 2, 3], [0, 3, 1], [0, 1, 2]]
+		primal_data = [
+		               VertexData(position=np.array([0.0, 0.0, 0.0])),
+		               VertexData(position=np.array([1.0, 0.0, 0.0])),
+		               VertexData(position=np.array([0.0, 1.0, 0.0])),
+		               VertexData(position=np.array([0.0, 0.0, 1.0]))
+		               ]
+		Gp: Graph = Graph(nv, connectivity, primal_data)
+		f1 = plt.figure(1)
+		ax = plt.axes(projection='3d')
+		ax.set_xlabel('x')
+		ax.set_ylabel('y')
+		ax.set_zlabel('z')
+		fh1 = plot_polyhedron_graph(Gp, "red", f1)
+		
+		# construct the dual graph
+		Gd: Graph = Gp.build_dual_graph()
+		nf = Gd.num_v()
+		for i in range(0, nf):
+		  f = Gd.get_vertex(i)
+		  f.aux_data.pos = np.zeros((3,))
+		  nfv = len(f.aux_data.face) # number of vertices on face
+		
+		  # collect distinct vertices on facae
+		  vertex_set = set()
+		  for ef in f.aux_data.face:
+		    vertex_set.add(ef.head)
+		    vertex_set.add(ef.tail)
+		  
+		  # compute average of face vertices
+		  for v in vertex_set:
+		    f.aux_data.pos += v.aux_data.pos / nfv
+		
+		# plot the dual polyhedron
+		fh2 = plot_polyhedron_graph(Gd, "blue", f1)
+		plt.show()
+		
+		from collections import deque
+		import copy
+		import scipy.spatial as spys
+		import numpy as np
+		
+		# undirected edge with edge vertex indices in sorted order
+		# so lexicographical comparisons can be made between other
+		# edges
+		class Edge:
+		  def __init__(self, vid1, vid2):
+		    if vid1 > vid2:
+		      tmp = vid2
+		      vid2 = vid1
+		      vid1 = tmp
+		    self.v1 = vid1;
+		    self.v2 = vid2;
+		  
+		  def __eq__(self, e):
+		    return (self.v1 == e.v1) and (self.v2 == e.v2)
+		  
+		  def __ne__(self, e):
+		    return not self.__eq__(e)
+		
+		  def __hash__(self):
+		    return hash((self.v1, self.v2))
+		
+		# polygonal face of a corresponding polyhedron
+		class Face:
+		
+		  # constructor for a general face
+		  def __init__(self, id, edge_set, normal, offset):
+		    self.id = id
+		    self.e_set = edge_set
+		    self.normal = normal
+		    self.offset = offset
+		    self.neighbors = []
+		
+		  def add_neighbor(self, neighbor_id):
+		    self.neighbors.append(neighbor_id)
+		
+		  def add_neighbors(self, neighbor_list):
+		    self.neighbors = neighbor_list
+		
+		  # check if these two facets have a normal that is numerically equivalent
+		  def should_merge(self, f):
+		    return (1.0 - np.dot(self.normal, f.normal)) < 1e-10
+		
+		  # scale the normal n such that n^T x <= 1
+		  def scaled_normal(self):
+		    if self.offset > 0.0:
+		      return self.normal / self.offset
+		    else:
+		      return self.normal
+		
+		  # merge `f` with this face, given they are coplanar
+		  def merge(self, f):
+		    new_edge_set = self.e_set.symmetric_difference(f.e_set)
+		    self.e_set = new_edge_set
+		
+		  # get all vertex IDs on the boundary of the face
+		  # and return them as a set
+		  def get_vertex_id_set(self):
+		    vid_set = set()
+		    for e in self.e_set:
+		      vid_set.add(e.v1)
+		      vid_set.add(e.v2)
+		    return vid_set
+		
+		def merge_coplanar_simplicial_facets(hull):
+		
+		  # construct faces of convex hull
+		  faces = []
+		  (nfaces, dim) = hull.simplices.shape
+		  for i in range(0, nfaces):
+		
+		    # form edge set for this face
+		    simplex = hull.simplices[i,:]
+		    edge_set = set()
+		    for j in range(0, 3):
+		      v1 = simplex[j]
+		      v2 = simplex[(j+1) % 3]
+		      edge_set.add(Edge(v1, v2))
+		
+		    # grab the normal equation and offset for this face
+		    normal = hull.equations[i,:3]
+		    offset = hull.equations[i,3]
+		
+		    # make face and add to face list
+		    faces.append(Face(i, edge_set, normal, offset))
+		
+		  # add connectivity between faces
+		  for i in range(0, nfaces):
+		    fi = faces[i]
+		    neighbors = hull.neighbors[i,:]
+		    for j in range(0, 3):
+		      if neighbors[j] > -1:
+		        fi.add_neighbor(neighbors[j])
+		
+		  # start building up the polygonal faces
+		  unvisited_faces = set(faces)
+		  num_init_faces = len(faces)
+		  has_visited = [False] * num_init_faces
+		  new_id = 0
+		  new_faces = []
+		  while len(unvisited_faces) > 0:
+		
+		    # pop an arbitrary face
+		    f = unvisited_faces.pop()
+		    has_visited[f.id] = True
+		
+		    # make a copy of this face
+		    fnew = Face(new_id, 
+		                copy.deepcopy(f.e_set), 
+		                copy.deepcopy(f.normal), 
+		                f.offset )
+		    new_id = new_id + 1
+		
+		    # add neighbors to a queue
+		    d = deque()
+		    for neighbor_id in f.neighbors:
+		      if not has_visited[neighbor_id]:
+		        d.append(faces[neighbor_id])
+		
+		    # try to grow this face out
+		    while len(d) > 0:
+		      ft = d.popleft()
+		
+		      # if ft is coplanar to fnew, then
+		      # we should merge the two polygons
+		      if fnew.should_merge(ft):
+		
+		        # this means we remove ft since it will now be marked
+		        # as visited
+		        unvisited_faces.remove(ft)
+		        has_visited[ft.id] = True
+		
+		        # grab all its neighbors that are unvisited so far
+		        # and add to queue to be processed
+		        for neighbor_id in ft.neighbors:
+		          if not has_visited[neighbor_id]:
+		            d.append(faces[neighbor_id])
+		        fnew.merge(ft)
+		    
+		    # add the new face to our new list of faces
+		    new_faces.append(fnew)
+		  
+		  # return new list of faces
+		  return new_faces
+		
+		def compute_polar(P: Graph):
+		  # this has a bug as of March 10, 2022
+		  # progress to fix:
+		  #
+		  # compute dual representation for polar of P
+		  Pstar: Graph = P.build_dual_graph()
+		
+		  # first step to get polar is to compute the convex hull of the vertices of P
+		  points = P.get_points_coords()
+		  hull = spys.ConvexHull(points)
+		
+		  # unfortunately, this convex hull returns only simplicial facets, so we have
+		  # to manually merge facets that are coplanar. This could be error prone due to
+		  # finite precision related errors..
+		  # each face of the merged convex hull corresponds to a vertex in the polar (dual)
+		  # each facet will have type `Face`
+		  facets = merge_coplanar_simplicial_facets(hull)
+		
+		  # we scale the normal for each face such that it is of the form a^T x <= 1
+		  # and after doing so, this will imply that the vector a is our coordinate for
+		  # the corresponding face vertex in the dual graph.
+		  #
+		  # this last step is to connect the polar coordinates to a dual graph
+		  # representation of the polar
+		  #
+		  # do a brute force comparison for now
+		  pstar_vsets = []
+		  for i in range(0, Pstar.num_v()):
+		    seti = Pstar.get_vertex(i).aux_data.get_vertex_id_set()
+		    pstar_vsets.append(seti)
+		  
+		  for f in facets:
+		    found_pos = False
+		    vertex_set = f.get_vertex_id_set()
+		    for i in range(0, Pstar.num_v()):
+		      if vertex_set == pstar_vsets[i]:
+		        vi = Pstar.get_vertex(i)
+		        vi.aux_data.pos = f.scaled_normal()
+		        found_pos = True
+		        break
+		    if not found_pos:
+		      print("Failed to find point for f.id = {0}".format(f.id))
+		
+		  # return the resulting graph
+		  return Pstar
+		  
+		# setup points for a cube
+		cube_points = np.array([[0.0, 0.0, 0.0],
+		                        [1.0, 0.0, 0.0],
+		                        [0.0, 1.0, 0.0],
+		                        [0.0, 0.0, 1.0],
+		                        [1.0, 1.0, 0.0],
+		                        [1.0, 0.0, 1.0],
+		                        [0.0, 1.0, 1.0],
+		                        [1.0, 1.0, 1.0]])
+		
+		# compute the convex hull of this cube.
+		# this algorithm returns simplicial facets,
+		# so there should be 12 faces
+		cube_hull = spys.ConvexHull(cube_points)
+		print("Number of triangular faces for the convex hull of cube are {0}".format(cube_hull.simplices.shape[0]))
+		
+		# want to simplify this into 6 faces. Let's see if the algo works..
+		new_faces = merge_coplanar_simplicial_facets(cube_hull)
+		print("New number of faces after merging coplanar faces of cube are {0}".format(len(new_faces)))
+		
+		def nullspace_repr(M):
+		  nullspace_basis = linalg.null_space(M)
+		  U = nullspace_basis.transpose()
+		  
+		def form_CdV_matrix(P):
+		
+		  # form the polar polyhedron Pstar
+		  Pstar = P.build_polar()
+		
+		  # construct M by the approach outlined in paper
+		  nv = P.num_v()
+		  M = np.zeros((nv, nv))
+		  for i in range(0, nv):
+		    ui = P.get_vertex(i).aux_data.pos
+		    for j in reversed(range(i, nv)):
+		      uj = P.get_vertex(j).aux_data.pos
+		
+		      if i == j:
+		        # this case is the last one for its row, so everything should already be
+		        # computed that needs to be to compute M_{ii}
+		        ui_p = np.zeros((3,))
+		
+		        # compute u'_{i} = sum_{k \in N(i)} M(i,k) u_k
+		        for e in P.get_out_darts(i):
+		          k = e.head.id
+		          u_k = e.head.aux_data.pos
+		          ui_p += M[i, k] * u_k
+		
+		        #print("---")
+		        #print(np.cross(ui_p, ui))
+		        #print("----")
+		        
+		        # given equation u'_{i} = - M_{ii} u_{i}, solve for M_{ii}
+		        M[i,i] = - np.dot(ui_p, ui) / np.dot(ui, ui)
+		
+		      else:
+		        # compute the following from the paper
+		        #
+		        # w_{fg} = w_f - w_g = M_{ij} cross(u_i, u_j)
+		        # where we swap w_f and w_g if it ensures that M_{ij} < 0
+		
+		        # get dart u_i -> u_j
+		        e = P.get_dart(i, j)
+		
+		        # if there is no edge from i to j, then skip this loop iteration
+		        if e is None:
+		          continue
+		
+		        # compute cross(u_i, u_j) and obtain the corresponding norm
+		        # and unit vector of this result
+		        u_cross = np.cross(ui, uj)
+		        uc_norm = np.linalg.norm(u_cross)
+		        uc_dir = u_cross / uc_norm
+		
+		        # obtain the dual dart w_g -> w_f
+		        # note that paper chose that w_f -> w_g is the corresponding dart, so
+		        # we have the reverse here
+		        dual_e = e.dual()
+		        f = dual_e.head
+		        g = dual_e.tail
+		
+		        # compute w_{fg} = w_f - w_g
+		        w_fg = f.aux_data.pos - g.aux_data.pos
+		
+		        # solve for M_{ij}
+		        M_ij = np.dot(w_fg, uc_dir) / uc_norm
+		
+		        # flip sign (if necessary) and set to matrix position
+		        if M_ij > 0:
+		          #print("Flipping sign!")
+		          M_ij *= -1.0
+		        M[i,j] = M_ij
+		        M[j,i] = M_ij
+		  
+		  # return the final matrix
+		  return M
+		
+		# define the first convex polyhedron (cube?)
+		nv1 = 8 # number of vertices
+		connectivity1 = [[1, 5, 3], [0, 2, 6], [3, 7, 1], [4, 2, 0],
+		                 [5, 7, 3], [6, 4, 0], [7, 5, 1], [4, 6, 2]]
+		primal_data1 = [
+		                VertexData(position=np.array([1.0, -1.0, -2.0])),
+		                VertexData(position=np.array([-1.0, -1.0, -2.0])),
+		                VertexData(position=np.array([-1.0, 1.0, -2.0])),
+		                VertexData(position=np.array([1.0, 1.0, -2.0])),
+		                VertexData(position=np.array([1.0, 1.0, 2.0])),
+		                VertexData(position=np.array([1.0, -1.0, 2.0])),
+		                VertexData(position=np.array([-1.0, -1.0, 2.0])),
+		                VertexData(position=np.array([-1.0, 1.0, 2.0]))
+		               ]
+		P1: Graph = Graph(nv1, connectivity1, primal_data1)
+		
+		# plot the polyhedron
+		f1 = plt.figure(1)
+		ax = plt.axes(projection='3d')
+		ax.set_xlabel('x')
+		ax.set_ylabel('y')
+		ax.set_zlabel('z')
+		plot_polyhedron_graph(P1, "red", f1)
+		
+		# define the second convex polyhedron (skew the object a bit)
+		nv2 = 8 # number of vertices
+		connectivity2 = [[1, 5, 3], [0, 2, 6], [3, 7, 1], [4, 2, 0],
+		                 [5, 7, 3], [6, 4, 0], [7, 5, 1], [4, 6, 2]]
+		primal_data2 = [
+		                VertexData(position=np.array([-1.0, -1.0, 1.0])),
+		                VertexData(position=np.array([-1.0, -1.0, -1.0])),
+		                VertexData(position=np.array([-1.0, 1.0, -1.0])),
+		                VertexData(position=np.array([-1.0, 1.0, 1.0])),
+		                VertexData(position=np.array([3.0, 3.0, 3.0])),
+		                VertexData(position=np.array([3.0, -3.0, 3.0])),
+		                VertexData(position=np.array([3.0, -3.0, -3.0])),
+		                VertexData(position=np.array([3.0, 3.0, -3.0]))
+		               ]
+		P2: Graph = Graph(nv2, connectivity2, primal_data2)
+		
+		# plot the polyhedron
+		plot_polyhedron_graph(P2, "blue", f1)
+		plt.show()
+		
+		# create a temporary polyhedron for the sake of visualization
+		nv = 8 # number of vertices
+		connectivity = [[1, 5, 3], [0, 2, 6], [3, 7, 1], [4, 2, 0],
+		                 [5, 7, 3], [6, 4, 0], [7, 5, 1], [4, 6, 2]]
+		primal_data = [
+		                VertexData(),
+		                VertexData(),
+		                VertexData(),
+		                VertexData(),
+		                VertexData(),
+		                VertexData(),
+		                VertexData(),
+		                VertexData()
+		               ]
+		P_tmp: Graph = Graph(nv, connectivity, primal_data)
+		
+		# compute CdV matrices from both polyhedron
+		M1 = form_CdV_matrix(P1)
+		print(M1)
+		print(np.linalg.norm(np.matmul(M1, np.ones((nv1,)))))
+		
+		# construct laplacian L1 using eigensystem of M1
+		(E1, U1) = np.linalg.eig(M1)
+		min_idx = np.argmin(E1)
+		print(E1[min_idx])
+		print(U1[:, min_idx])
+		diagXmin = np.diag(U1[:,min_idx])
+		L1_test = M1 - (E1[min_idx]) * np.eye(nv1)
+		print(np.linalg.norm(np.matmul(L1_test, np.ones((nv1,)))))
+		L1 = np.matmul((M1 - (E1[min_idx]) * np.eye(nv1)), diagXmin)
+		print(diagXmin)
+		
+		# construct diag(X_{min}) where X_{min} is the eigenvector corresponding to the
+		# minimum eigenvalue
+		dX1 = np.diag(U1[:,min_idx])
+		
+		# compute the eigensystem for L1
+		(E1p, U1p) = np.linalg.eig(L1)
+		print(E1p)
+		sort_indices = np.argsort(E1p)
+		
+		# see if a random eigenvector of L1 is also an eigenvector of diag(X_{min})
+		print("try diag(X_{min}) * q for some eigenvector q for L")
+		
+		for i in range(0, nv1):
+		  print("--- processing ({0}) ---".format(i))
+		  diagX = np.diag(U1[:, min_idx] - U1[i, min_idx])
+		  norm_val = np.linalg.norm( np.matmul(diagX, U1p[:, 0]))
+		  print("norm( (diag(X_(min) - X_(min)({0}))*q ) = {1}".format( i, norm_val) )
+		
+		# construct a CdV matrix using the laplacian and see how it compares
+		# to the original CdV matrix
+		M1p = L1 - E1p[sort_indices[1]] * np.eye(nv1);
+		c = M1p[0,0] / M1[0,0]
+		print(M1p)
+		print(c)
+		
+		# check that the all-1s vetor returns the 0 vector
+		vec1 = np.ones((nv1,))
+		out = np.matmul(L1, vec1)
+		print("|| L1 * vec(1) || = {0}".format(np.linalg.norm(out)))
+		print("Corank(M1) = {0}".format(nv1 - np.linalg.matrix_rank(M1)))
+		#print(M1)
+		#print("-------------")
+		M2 = form_CdV_matrix(P2)
+		(E2, U2) = np.linalg.eig(M2)
+		min_idx = np.argmin(E2)
+		print(E2)
+		print(E2[min_idx])
+		print(U2[:, min_idx])
+		for i in range(0, nv2):
+		  print("---{0}th eigenvector---".format(i))
+		  print(U2[:, i])
+		  print("______")
+		print("Corank(M2) = {0}".format(nv2 - np.linalg.matrix_rank(M2)))
+		#print(M2)
+		
+		# do a convex combination of the two for different values 
+		# and compute their rank while also spitting out the nullspace representation
+		print("See how the corank changes as we average the matrices")
+		alpha = np.linspace(0.0, 1.0, 10)
+		for i in range(0, len(alpha)):
+		  a = alpha[i]
+		  M = (1 - a) * M1 + a * M2
+		  corank = nv - np.linalg.matrix_rank(M)
+		  print("for alpha = {0}, the corank of the matrix is {1}".format(a, corank))
+		
+		  """
+		  # compute nullspace representation
+		  U = nullspace_repr(M)
+		
+		  # stuff into the corresponding polyhedron
+		  (d, n) = U.shape
+		  for j in range(0, P_tmp.num_v()):
+		    vj = P_tmp.get_vertex(j)
+		    vj.aux_data.pos = U[:,j]
+		  
+		  # plot the polyhedron based on the nullspace representation
+		  # setup figure
+		  f1 = plt.figure(i)
+		  ax = plt.axes(projection='3d')
+		  ax.set_xlabel('x')
+		  ax.set_ylabel('y')
+		  ax.set_zlabel('z')
+		
+		  # do the plot
+		  plot_polyhedron_graph(P_tmp, "red", f1)
+		  plt.show()
+		  """
+		
+		</py-script>
+	
+	</body>
+</html>

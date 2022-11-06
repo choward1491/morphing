@@ -78,6 +78,115 @@ class Polyhedron:
         # currently assume the same as out degree
         return self.out_degree(v)
 
+    def build_dual_graph(self):
+
+        # get the faces for the dual graph
+        faces_list, edge2facet_idx = self._get_faces()
+
+        # get the number of faces
+        nf = len(faces_list)
+
+        # construct the vertices for the dual graph
+        dual_data = []
+        for f in faces_list:
+            dual_data.append(VertexData(face=f))
+
+        # construct the edges for the dual graph
+        dual_connectivity = []
+        for i in range(0, nf):
+            e_list = []
+            for e in faces_list[i]:
+                e_rev = e.rev()
+                e_list.append(edge2facet_idx[e_rev])
+            e_list.reverse()
+            dual_connectivity.append(e_list)
+
+        # construct the actual dual graph
+        dual_graph: Polyhedron = Polyhedron(nf, dual_connectivity, dual_data)
+
+        # connect dual edges and primal edges
+        for i in range(0, nf):
+            # faces_list[i].reverse()
+            idx = 0
+            for j in dual_connectivity[i]:
+                e = faces_list[i][idx]
+                idx = idx + 1
+
+                # construct dual edge
+                e_ij = dual_graph.get_dart(i, j)
+
+                # connect primal edge with corresponding dual edge
+                e_ij.set_dual_edge(e)
+                e.set_dual_edge(e_ij)
+
+        return dual_graph
+
+    def build_polar(self):
+
+        # get the faces for the dual graph
+        faces_list, edge2facet_idx = self._get_faces()
+
+        # get the number of faces
+        nf = len(faces_list)
+
+        # construct the vertices for the dual graph
+        dual_data = []
+        for f in faces_list:
+            # compute the position of the dual point
+            n = self._compute_polar_normal(f)
+
+            # add the dual data
+            dual_data.append(VertexData(face=f, position=n))
+
+        # construct the edges for the dual graph
+        dual_connectivity = []
+        for i in range(0, nf):
+            e_list = []
+            for e in faces_list[i]:
+                e_rev = e.rev()
+                e_list.append(edge2facet_idx[e_rev])
+            e_list.reverse()
+            dual_connectivity.append(e_list)
+
+        # construct the actual dual graph
+        dual_graph: Polyhedron = Polyhedron(nf, dual_connectivity, dual_data)
+
+        # connect dual edges and primal edges
+        for i in range(0, nf):
+            # faces_list[i].reverse()
+            idx = 0
+            for j in dual_connectivity[i]:
+                e = faces_list[i][idx]
+                idx = idx + 1
+
+                # construct dual edge
+                e_ij = dual_graph.get_dart(i, j)
+
+                # connect primal edge with corresponding dual edge
+                e_ij.set_dual_edge(e)
+                e.set_dual_edge(e_ij)
+
+        return dual_graph
+
+    def get_points_coords(self):
+        P = np.zeros((self.num_vertices, 3))
+        for i in range(0, self.num_vertices):
+            vi = self.vertices[i]
+            P[i, :] = vi.aux_data.pos
+        return P
+
+    def recenter(self, new_center = np.zeros((3,))):
+        delta = new_center - self.center
+        for v in self.vertices:
+            v.aux_data.pos += delta
+        self.center = new_center
+
+    def radius(self):
+        r = 0
+        for v in self.vertices:
+            r = np.max([r, np.linalg.norm(v.aux_data.pos)])
+        return r
+
     def plot_edges(self, color, handle=None):
         # set the figure handle
         fig_handle = None
@@ -176,103 +285,6 @@ class Polyhedron:
         # plot the edges for the graph on top of the triangulation
         return fig_handle
 
-    def build_dual_graph(self):
-
-        # get the faces for the dual graph
-        faces_list, edge2facet_idx = self._get_faces()
-
-        # get the number of faces
-        nf = len(faces_list)
-
-        # construct the vertices for the dual graph
-        dual_data = []
-        for f in faces_list:
-            dual_data.append(VertexData(face=f))
-
-        # construct the edges for the dual graph
-        dual_connectivity = []
-        for i in range(0, nf):
-            e_list = []
-            for e in faces_list[i]:
-                e_rev = e.rev()
-                e_list.append(edge2facet_idx[e_rev])
-            e_list.reverse()
-            dual_connectivity.append(e_list)
-
-        # construct the actual dual graph
-        dual_graph: Polyhedron = Polyhedron(nf, dual_connectivity, dual_data)
-
-        # connect dual edges and primal edges
-        for i in range(0, nf):
-            # faces_list[i].reverse()
-            idx = 0
-            for j in dual_connectivity[i]:
-                e = faces_list[i][idx]
-                idx = idx + 1
-
-                # construct dual edge
-                e_ij = dual_graph.get_dart(i, j)
-
-                # connect primal edge with corresponding dual edge
-                e_ij.set_dual_edge(e)
-                e.set_dual_edge(e_ij)
-
-        return dual_graph
-
-    def build_polar(self):
-
-        # get the faces for the dual graph
-        faces_list, edge2facet_idx = self._get_faces()
-
-        # get the number of faces
-        nf = len(faces_list)
-
-        # construct the vertices for the dual graph
-        dual_data = []
-        for f in faces_list:
-            # compute the position of the dual point
-            n = self._compute_polar_normal(f)
-
-            # add the dual data
-            dual_data.append(VertexData(face=f, position=n))
-
-        # construct the edges for the dual graph
-        dual_connectivity = []
-        for i in range(0, nf):
-            e_list = []
-            for e in faces_list[i]:
-                e_rev = e.rev()
-                e_list.append(edge2facet_idx[e_rev])
-            e_list.reverse()
-            dual_connectivity.append(e_list)
-
-        # construct the actual dual graph
-        dual_graph: Polyhedron = Polyhedron(nf, dual_connectivity, dual_data)
-
-        # connect dual edges and primal edges
-        for i in range(0, nf):
-            # faces_list[i].reverse()
-            idx = 0
-            for j in dual_connectivity[i]:
-                e = faces_list[i][idx]
-                idx = idx + 1
-
-                # construct dual edge
-                e_ij = dual_graph.get_dart(i, j)
-
-                # connect primal edge with corresponding dual edge
-                e_ij.set_dual_edge(e)
-                e.set_dual_edge(e_ij)
-
-        return dual_graph
-
-    def get_points_coords(self):
-        P = np.zeros((self.num_vertices, 3))
-        for i in range(0, self.num_vertices):
-            vi = self.vertices[i]
-            P[i, :] = vi.aux_data.pos
-        return P
-
     """
     add private helper methods
     """
@@ -282,6 +294,7 @@ class Polyhedron:
         n = num_vertices
         self.num_vertices = n
         self.num_edges = 0
+        self.center = np.zeros((3,))
 
         # construct vertices
         self.vertices = [None] * n
@@ -290,6 +303,8 @@ class Polyhedron:
                 self.vertices[i] = Vertex(i)
             else:
                 self.vertices[i] = Vertex(i, aux_data[i])
+                self.center += aux_data[i].pos
+        self.center /= n
 
         # construct list of edges in adjacency list format, where the
         # edges associated with vertex i are those where vertex i is the
@@ -394,3 +409,18 @@ class Polyhedron:
 
         # return the final list of faces
         return faces_list, edge2facet_idx
+
+def scale(P: Polyhedron, s):
+    for v in P.vertices:
+        v.aux_data.pos *= s
+    P.center *= s
+
+def translate(P: Polyhedron, t):
+    for v in P.vertices:
+        v.aux_data.pos += t
+    P.center += t
+
+def rotate(P: Polyhedron, R):
+    for v in P.vertices:
+        v.aux_data.pos = np.matmul(R, v.aux_data.pos)
+    P.center = np.matmul(R, P.center)

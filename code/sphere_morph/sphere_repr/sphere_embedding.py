@@ -28,7 +28,7 @@ class SphereEmbedding:
 
         # draw polyhedron if necessary
         if do_draw_polyhedron:
-            self.polyhedron_repr.plot_surface(face_color=np.array([1.0, 0.0, 0.6, 0.3]), handle=fig_handle)
+            self.polyhedron_repr.plot_surface(face_color=np.array([1.0, 0.0, 0.6, 0.5]), handle=fig_handle)
 
         # draw a transparent sphere
         ax.plot_trisurf(self.x, self.y, triangles=self.triangles, linewidth=0, color=np.array([0.9, 0.9, 0.9, 0.35]),
@@ -55,7 +55,7 @@ class SphereEmbedding:
         self.x, self.y, self.z = np.cos(phi) * np.cos(theta), np.cos(phi) * np.sin(theta), np.sin(phi)
 
     def _draw_edge(self, ax, dart):
-        alpha_values = np.linspace(0.0, 1.0, 10)
+        alpha_values = np.linspace(0.0, 1.0, 30)
         p_start = dart.tail.aux_data.pos / np.linalg.norm(dart.tail.aux_data.pos)
         p_end = dart.head.aux_data.pos / np.linalg.norm(dart.head.aux_data.pos)
         p_last = p_start

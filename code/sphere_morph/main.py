@@ -2,6 +2,7 @@
 import numpy as np
 import polyhedron_repr as poly_repr
 from polyhedron_repr import VertexData
+from polyhedron_repr import HendersonBadExample
 from sphere_repr import SphereEmbedding
 from mpl_toolkits import mplot3d
 import matplotlib as mpl
@@ -60,7 +61,14 @@ def test_plot_sphere_embedding():
     fig = embedding.draw(do_draw_polyhedron=True)
     plt.show()
 
+def test_plot_henderson_bad_example():
+    bad_polyhedron: poly_repr.Polyhedron = HendersonBadExample(n=3, twist=np.pi/4)
+    embedding: SphereEmbedding = SphereEmbedding(bad_polyhedron)
+    fig = embedding.draw(do_draw_polyhedron=True)
+    plt.show()
+
+
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    test_plot_sphere_embedding()
+    test_plot_henderson_bad_example()

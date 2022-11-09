@@ -55,7 +55,8 @@ class SphereEmbedding:
         self.x, self.y, self.z = np.cos(phi) * np.cos(theta), np.cos(phi) * np.sin(theta), np.sin(phi)
 
     def _draw_edge(self, ax, dart):
-        alpha_values = np.linspace(0.0, 1.0, 30)
+        # TODO: use unit quaternions to compute locations on the sphere for use in visualizing edges
+        alpha_values = np.linspace(0.0, 1.0, 100)
         p_start = dart.tail.aux_data.pos / np.linalg.norm(dart.tail.aux_data.pos)
         p_end = dart.head.aux_data.pos / np.linalg.norm(dart.head.aux_data.pos)
         p_last = p_start

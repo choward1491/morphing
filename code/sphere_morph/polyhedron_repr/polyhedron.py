@@ -396,7 +396,7 @@ class Polyhedron:
 
             # loop over cycle representing face
             # based on the rotation system
-            et = self._next(e.rev());
+            et = self._next(e.rev())
             while et != e:
                 face.append(et)
                 edge2facet_idx[et] = fidx

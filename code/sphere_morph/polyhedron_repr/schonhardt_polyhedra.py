@@ -7,7 +7,7 @@ def HendersonBadExample(n: int = 3, twist=np.pi / 3.0, radial_dist_poles=0.5):
     num_vertices = 2 * (n + 1)
     pole_vertex_ID = n
     top_ids = list(range(0, n + 1))
-    bottom_ids = list(range(n+1, 2 * (n + 1)))
+    bottom_ids = list(range(n+1, 2 * n + 2))
 
     # generate the aux data with coordinates for the vertices
     aux_data = [None] * num_vertices
@@ -28,8 +28,8 @@ def HendersonBadExample(n: int = 3, twist=np.pi / 3.0, radial_dist_poles=0.5):
     connectivity = dict()
 
     # connectivity of top and bottom pole vertices
-    connectivity[top_ids[pole_vertex_ID]] = list(range(n, -1, -1))
-    connectivity[bottom_ids[pole_vertex_ID]] = range(n+1, 2 * n + 1)
+    connectivity[top_ids[pole_vertex_ID]] = list(range(n-1, -1, -1))
+    connectivity[bottom_ids[pole_vertex_ID]] = list(range(n+1, 2 * n + 1))
 
     # connectivity of top vertices not including north pole
     for i in range(0, n):

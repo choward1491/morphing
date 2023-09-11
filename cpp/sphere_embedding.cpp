@@ -306,7 +306,7 @@ void SphereEmbedding::rotate(const arma::mat33 &R) {
 }
 void SphereEmbedding::transform(const arma::mat33 &T) {
   P_->apply_transformation(T);
-  P_->normalize(); // to fix any shearing
+  P_->normalize(); // to ensure we maintain a unit sphere
 }
 const Polyhedron *SphereEmbedding::get_internal_polyhedron() const {
   return P_.get();

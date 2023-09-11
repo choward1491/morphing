@@ -50,11 +50,11 @@ class Visualizer {
 
   // useful methods
   void draw_shortest_geodesic(::matplot::axes_handle axes_handle, const arma::vec3 &p1, const arma::vec3 &p2,
-                              std::array<float,3> color = {0.0, 0.0, 0.0},
-                              float line_width = 1.0,
                               bool draw_back_edges_dotted = false,
                               std::optional<double> az = std::nullopt,
-                              std::optional<double> el = std::nullopt);
+                              std::optional<double> el = std::nullopt,
+                              std::array<float,3> color = {0.0, 0.0, 0.0},
+                              float line_width = 1.0);
 };
 
 }

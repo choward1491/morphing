@@ -16,7 +16,17 @@ class SphereEmbedding:
         self._normalize_internal_polygon()
         self._build_unit_sphere_triangulation()  # build unit triangulation for visualization
 
+    # TODO(choward): Should probably separate any drawing routines out into a class so we can create different drawing implementations of the sphere, depending on the visualization library in question.
     def draw(self, do_draw_polyhedron=False, handle=None, az=None, el=None, other_vertices=None):
+        """
+        This method is for drawing a spherical embedding of a graph onto a sphere with an optimal flag for drawing the underlying polyhedron,
+        :param do_draw_polyhedron: Boolean flag to decide whether a user wants to draw the underlying star-shaped polyhedron of the spherical embedding.
+        :param handle: Figure handle for reuse purposes.
+        :param az: Azimuth angle to position camera
+        :param el: Elevation angle to position camera
+        :param other_vertices: List of vertices that will be marked by another color when plotted, usually to emphasize some particularly localized aspect of the embedding.
+        :return: (Figure Handle, Plot Axes)
+        """
         # set the figure handle
         fig_handle = None
         ax = None
@@ -56,6 +66,14 @@ class SphereEmbedding:
         return fig_handle, ax
 
     def draw_longitude_morph(self, north_pole_idx: int, new_coordinates, num_snapshots=50, save_file_pattern=None):
+        """
+        This method produces an animation for a longitudinal morph with snapshots that are saved to disk as images.
+        :param north_pole_idx: Index for vertex that will be viewed as the north pole
+        :param new_coordinates: New coordinates we will morph the embedding to, under the assumption they can be obtained by a longitudinal morph.
+        :param num_snapshots: Number of animation frames we want to save to disk.
+        :param save_file_pattern: Pattern for image filenames that we will save, if specified.
+        :return: None
+        """
 
         # draw figure first and let user tweak the orientation and size
         fig_handle = self.draw()
@@ -115,6 +133,15 @@ class SphereEmbedding:
             self.polyhedron_repr.get_vertex(i).aux_data.pos = old_coordinates[i]
 
     def draw_longitude_directed_morph(self, quad, new_coordinates, direction, num_snapshots=50, save_file_pattern=None):
+        """
+        This method produces an animation for a longitudinal morph with snapshots that are saved to disk as images.
+        :param quad: List of 4 vertex IDs corresponding to a quad we want to visualize being morphed
+        :param new_coordinates: New coordinates we will morph the embedding to, under the assumption they can be obtained by a longitudinal morph.
+        :param direction: Unit direction we will view as the north pole unit normal. We will morph along this direction to the new coordinates.
+        :param num_snapshots: Number of animation frames we want to save to disk.
+        :param save_file_pattern: Pattern for image filenames that we will save, if specified.
+        :return: None
+        """
 
         # draw figure first and let user tweak the orientation and size
         fig_handle, ax = self.draw(other_vertices=quad)

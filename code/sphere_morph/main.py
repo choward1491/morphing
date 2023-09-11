@@ -104,17 +104,47 @@ def test_quad_convexification():
         print("unexpected")
     '''
 
+
+    v1 = np.array([0, -1.0, -0.1])
+    v1 = v1 / np.linalg.norm(v1)
+    v2 = np.array([0, -0.1, -1.0])
+    v2 = v2 / np.linalg.norm(v2)
+    v3 = np.array([-0.5, -0.5, -0.5])
+    v3 = v3 / np.linalg.norm(v3)
+    test_poly: poly_repr.Polyhedron = poly_repr.Polyhedron(num_vertices=7,
+                                                           connectivity=[[1, 4, 3, 2],
+                                                                         [4, 0, 2, 5],
+                                                                         [1, 0, 3, 6, 5],
+                                                                         [2, 0, 4, 6],
+                                                                         [3, 0, 1, 5, 6],
+                                                                         [2, 6, 4, 1],
+                                                                         [2, 3, 4, 5]],
+                                                           aux_data=[VertexData(position=np.array([0.0, 0.0, 1.0])),
+                                                                     VertexData(position=np.array([0.0, 1.0, 0.0])),
+                                                                     VertexData(position=np.array([1.0, 0.0, 0.0])),
+                                                                     VertexData(position=v1),
+                                                                     VertexData(position=np.array([-1.0, 0, 0])),
+                                                                     VertexData(position=v2),
+                                                                     VertexData(position=v3)
+                                                                     ])
+    test_embedding: SphereEmbedding = SphereEmbedding(test_poly)
+    test_embedding.draw()
+    plt.show()
+
+
+
+    '''
     bad_polyhedron: poly_repr.Polyhedron = HendersonBadExample(n=10, twist=np.pi/3.0)
     embedding: SphereEmbedding = SphereEmbedding(bad_polyhedron)
     did_find, quad, tri1, tri2 = embedding.try_find_nonconvex_quad()
-    '''
+    
     if did_find:
         print(quad)
         embedding.draw(other_vertices=quad)
     else:
         embedding.draw()
     plt.show()
-    '''
+    
 
     # try to convexify the quad
     did_succeed, new_coordinates, direction = embedding.try_quad_convexification(quad, tri1, tri2)
@@ -131,6 +161,7 @@ def test_quad_convexification():
                                                 new_coordinates=new_coordinates,
                                                 direction=direction,
                                                 save_file_pattern="quad_conv_imgs/snapshot_{0}.png")
+    '''
 
 
 

@@ -175,7 +175,7 @@ class Polyhedron:
             P[i, :] = vi.aux_data.pos
         return P
 
-    def recenter(self, new_center = np.zeros((3,))):
+    def recenter(self, new_center=np.zeros((3,))):
         delta = new_center - self.center
         for v in self.vertices:
             v.aux_data.pos += delta
@@ -410,15 +410,18 @@ class Polyhedron:
         # return the final list of faces
         return faces_list, edge2facet_idx
 
+
 def scale(P: Polyhedron, s):
     for v in P.vertices:
         v.aux_data.pos *= s
     P.center *= s
 
+
 def translate(P: Polyhedron, t):
     for v in P.vertices:
         v.aux_data.pos += t
     P.center += t
+
 
 def rotate(P: Polyhedron, R):
     for v in P.vertices:

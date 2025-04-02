@@ -15,7 +15,7 @@ endif()
 find_package(Armadillo)
 find_library(GLPK glpk)
 
-add_library(sphere_morph polyhedron.cpp polyhedron.h sphere_embedding.cpp sphere_embedding.h primitives.cpp primitives.h linear_program.hpp linear_program.cpp morph_visualizer.cpp morph_visualizer.h)
+add_library(sphere_morph polyhedron.cpp polyhedron.h sphere_embedding.cpp sphere_embedding.h primitives.cpp primitives.h linear_program.hpp linear_program.cpp morph_visualizer.cpp morph_visualizer.h morph_step.h longitudinal_morph_step.cpp longitudinal_morph_step.h glp3r_morph_step.cpp glp3r_morph_step.h hemisphere_morph_step.cpp hemisphere_morph_step.h morph.cpp morph.h)
 target_include_directories(sphere_morph PUBLIC /usr/local/include ${ARMADILLO_INCLUDE_DIRS})
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Darwin")
     find_library(LIBBLAS Accelerate)

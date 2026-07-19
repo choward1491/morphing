@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+package morphing.protos;
+
+enum VertexType {
+  VERTEX_TYPE_PRIMAL = 0;
+  VERTEX_TYPE_DUAL = 1;
+}
+
+message Vector3dProto {
+  double x = 1;
+  double y = 2;
+  double z = 3;
+}
+
+message Vector3fProto {
+  float x = 1;
+  float y = 2;
+  float z = 3;
+}
+
+message ExtendedPrecisionVectorProto {
+  // String representation of exact / arbitrary-precision coordinates (e.g., decimals or rationals)
+  string x = 1;
+  string y = 2;
+  string z = 3;
+}
+
+message VertexProto {
+  uint64 id = 1;
+  VertexType type = 2;
+  
+  oneof coordinate {
+    Vector3dProto double_coords = 3;
+    ExtendedPrecisionVectorProto extended_coords = 4;
+  }
+  repeated uint64 rotation_system_neighbors = 5;
+}
+
+message EdgeProto {
+  uint64 id = 1;
+  uint64 start_vertex_id = 2;
+  uint64 end_vertex_id = 3;
+}
+
+message FaceProto {
+  uint64 id = 1;
+  repeated uint64 vertex_ids = 2;
+  repeated uint64 half_edge_ids = 3;
+}
+
+message GraphEmbeddingProto {
+  repeated VertexProto vertices = 1;
+  repeated EdgeProto edges = 2;
+  repeated FaceProto faces = 3;
+}

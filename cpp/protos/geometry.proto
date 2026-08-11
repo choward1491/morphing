@@ -4,53 +4,80 @@ package morphing.protos;
 
 enum VertexType {
   VERTEX_TYPE_PRIMAL = 0;
-  VERTEX_TYPE_DUAL = 1;
+  VERTEX_TYPE_DUAL   = 1;
 }
 
-message Vector3dProto {
-  double x = 1;
-  double y = 2;
-  double z = 3;
-}
+message Decimal {
+  oneof value {
+    double double_val = 1;
 
-message Vector3fProto {
-  float x = 1;
-  float y = 2;
-  float z = 3;
-}
-
-message ExtendedPrecisionVectorProto {
-  // String representation of exact / arbitrary-precision coordinates (e.g., decimals or rationals)
-  string x = 1;
-  string y = 2;
-  string z = 3;
-}
-
-message VertexProto {
-  uint64 id = 1;
-  VertexType type = 2;
-  
-  oneof coordinate {
-    Vector3dProto double_coords = 3;
-    ExtendedPrecisionVectorProto extended_coords = 4;
+    // String representation of exact / arbitrary-precision coordinates (e.g., decimals or rationals)
+    string exact_val = 2;
   }
-  repeated uint64 rotation_system_neighbors = 5;
 }
 
-message EdgeProto {
-  uint64 id = 1;
+message Point {
+  Decimal x = 1;
+  Decimal y = 2;
+  Decimal z = 3;
+}
+
+message Vertex {
+  uint64     id        = 1;
+  bool       is_active = 2; // this flag tracks whether the vertex is present in the graph.
+  VertexType type      = 3 [default = VERTEX_TYPE_PRIMAL];
+  Point      point     = 4;
+}
+
+message Dart {
+  uint64 id              = 1;
   uint64 start_vertex_id = 2;
-  uint64 end_vertex_id = 3;
+  uint64 end_vertex_id   = 3;
 }
 
-message FaceProto {
-  uint64 id = 1;
+message Face {
+  uint64          id         = 1;
   repeated uint64 vertex_ids = 2;
-  repeated uint64 half_edge_ids = 3;
+  repeated uint64 dart_ids   = 3;
 }
 
-message GraphEmbeddingProto {
-  repeated VertexProto vertices = 1;
-  repeated EdgeProto edges = 2;
-  repeated FaceProto faces = 3;
+message FacialMap {
+  repeated Dart darts = 1;
+  repeated Face faces = 2;
+}
+
+message VertexNeighbors {
+  uint64          vertex_id           = 1;
+  repeated uint64 vertex_neighbor_ids = 2; // in counter-clockwise order
+}
+
+message VertexNeighborsMap {
+  repeated VertexNeighbors vertex_neighbors = 1;
+}
+
+message GraphEmbedding {
+  repeated Vertex vertices = 1;
+
+  // The combinatorial structure of the graph embedding can be represented in two ways.
+  // 1. Facial map (which has oriented faces with corresponding darts in order).
+  // 2. Vertex neighbors map (which has the neighbors of each vertex oriented in counter-clockwise order).
+  // We can convert between the two, but we allow one to store either representation.
+  oneof representation {
+    FacialMap          facial_map           = 2;
+    VertexNeighborsMap vertex_neighbors_map = 3;
+  }
+}
+
+message IsomorphicGraphEmbeddings {
+  GraphEmbedding g0 = 1; // initial embedding.
+  GraphEmbedding g1 = 2; // final embedding.
+
+  // The combinatorial structure of the graph embeddings can be represented in two ways.
+  // 1. Facial map (which has oriented faces with corresponding darts in order).
+  // 2. Vertex neighbors map (which has the neighbors of each vertex oriented in counter-clockwise order).
+  // We can convert between the two, but we allow one to store either representation.
+  oneof representation {
+    FacialMap          facial_map           = 3;
+    VertexNeighborsMap vertex_neighbors_map = 4;
+  }
 }

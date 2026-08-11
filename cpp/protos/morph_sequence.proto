@@ -4,43 +4,48 @@ package morphing.protos;
 
 import "protos/geometry.proto";
 
-message EdgeContractionProto {
-  uint64 edge_id = 1;
-  uint64 kept_vertex_id = 2;
-  uint64 removed_vertex_id = 3;
-}
+// A vertex move corresponds to moving a vertex in an embedding to some new destination within its star's kernel.
+// This location can include a point on the surface not coincident to a vertex of the embedding, but it could also correspond to a vertex of the embedding.
+// When moving a vertex u to a vertex v, it is implied the edge {u, v} exists in the underlying graph and that after the contraction,
+// vertices u and v join to form a single vertex where v becomes the representative.
+// When moving a vertex u to a point p in its star's kernel, it is possible this vertex starts off coincident to an existing
+// vertex v. If so, this operation is called an edge expansion and the vertex u splits off from v as we move u to p.
+message VertexMove {
+  // The type of operation.
+  enum Operation {
+    EDGE_CONTRACTION = 0;
+    EDGE_EXPANSION   = 1;
+    VERTEX_MOVE      = 2;
+  }
 
-message EdgeExpansionProto {
-  uint64 edge_id = 1;
-  uint64 new_vertex_1_id = 2;
-  uint64 new_vertex_2_id = 3;
-}
-
-message VertexMoveProto {
-  uint64 vertex_id = 1;
+  Operation op               = 1;
+  uint64    vertex_moving_id = 2;
   oneof destination {
-    Vector3dProto double_dest = 2;
-    ExtendedPrecisionVectorProto extended_dest = 3;
+    // implies edge contraction: we move vertex_moving_id to vertex_destination_id.
+    // after completion, vertex_moving_id will no longer be in the graph.
+    uint64 vertex_destination_id = 3;
+    // implies either edge expansion or moving vertex to point in its star's kernel.
+    // in either case, the vertex will be within the graph. in the former case, it goes
+    // from not being in the graph to being in the graph.
+    Point destination_point = 4;
   }
 }
 
-message MorphOperationProto {
+message RotationMatrix {
+  repeated double elements = 1; // in row-major order
+}
+
+message PseudomorphStep {
   oneof operation {
-    EdgeContractionProto contraction = 1;
-    EdgeExpansionProto expansion = 2;
-    VertexMoveProto move = 3;
+    VertexMove     vertex_move = 1;
+    RotationMatrix rotation    = 2;
   }
 }
 
-message PseudomorphSequenceProto {
-  repeated MorphOperationProto operations = 1;
-}
-
-message MorphKeyframeProto {
-  double time = 1; // Normalized time t in [0, 1]
-  repeated VertexProto vertices = 2;
-}
-
-message CompiledMorphProto {
-  repeated MorphKeyframeProto keyframes = 1;
+// A sequence of operations that transform the start graph into the end graph.
+// This sequence is called a pseudomorph since it allows for vertices to move
+// and lie on top of other vertices.
+message Pseudomorph {
+  IsomorphicGraphEmbeddings embedding_pair = 1;
+  repeated PseudomorphStep  steps          = 2;
 }

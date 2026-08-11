@@ -69,8 +69,8 @@ message GraphEmbedding {
 }
 
 message IsomorphicGraphEmbeddings {
-  GraphEmbedding g0 = 1; // initial embedding.
-  GraphEmbedding g1 = 2; // final embedding.
+  repeated Vertex g0_vertices = 1; // vertex coordinates of initial embedding G0
+  repeated Vertex g1_vertices = 2; // vertex coordinates of final embedding G1
 
   // The combinatorial structure of the graph embeddings can be represented in two ways.
   // 1. Facial map (which has oriented faces with corresponding darts in order).

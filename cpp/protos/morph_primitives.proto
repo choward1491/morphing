@@ -31,6 +31,12 @@ message VertexMove {
   }
 }
 
+message LongitudinalMorph {
+  Point           north_pole           = 1; // North pole used to define the direction of the longitudinal axis.
+  GraphEmbedding  g0_embedding         = 2; // initial embedding
+  repeated Vertex new_vertex_positions = 3; // new positions of the vertices of g0
+}
+
 message RotationMatrix {
   repeated double elements = 1; // in row-major order
 }
@@ -48,4 +54,16 @@ message PseudomorphStep {
 message Pseudomorph {
   IsomorphicGraphEmbeddings embedding_pair = 1;
   repeated PseudomorphStep  steps          = 2;
+}
+
+message MorphStep {
+  oneof operation {
+    LongitudinalMorph longitudinal_morph = 1;
+    RotationMatrix    rotation           = 2;
+  }
+}
+
+message Morph {
+  IsomorphicGraphEmbeddings embedding_pair = 1;
+  repeated MorphStep        steps          = 2;
 }
